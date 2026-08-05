@@ -132,4 +132,31 @@ uint64_t EntryCount();
 uint64_t SMCFaultCount();
 uint64_t InvalidationCount();
 
+/**
+ * @brief Short-lived executable mappings, and whether FEXCore translated what was in them.
+ *
+ * a guest that maps a page, writes a trampoline into it, protects it executable, runs it and unmaps
+ * it — SharpEmu's blocked-thread resume, ~400 times a second — has been measured running the
+ * *previous* occupant of a recycled address. FEXCore calls MarkGuestExecutableRange for a page
+ * exactly once per invalidation epoch, so a page that was armed executable and then unmapped
+ * without one is a page no block was compiled on since we invalidated it: whatever ran there was
+ * cached.
+ *
+ * `Stale` counts those, and on its own it is not evidence. a page that is made executable and then
+ * freed without ever being *run* lands in the same column, which is legitimate and which SharpEmu's
+ * loader does a few hundred times during start-up in every run. so **`StaleProtected` is the column
+ * to read** — armed by an `mprotect` to executable, which is a guest declaring that code it has just
+ * written is ready to run, and which is the last thing the blocked-thread resume does before
+ * entering the trampoline — and even that is only meaningful as a delta past start-up.
+ */
+struct StubStats {
+  uint64_t Armed;
+  uint64_t Protected; ///< of Armed, the ones armed by mprotect rather than by mmap
+  uint64_t Compiled;
+  uint64_t Stale;
+  uint64_t StaleReused;
+  uint64_t StaleProtected;
+};
+StubStats StubReport();
+
 } // namespace HostLayer::VMA

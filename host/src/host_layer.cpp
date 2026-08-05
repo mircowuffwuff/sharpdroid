@@ -198,6 +198,17 @@ void PrintRunSummary() {
               static_cast<unsigned long long>(HostLayer::VMA::EntryCount()),
               static_cast<unsigned long long>(HostLayer::VMA::InvalidationCount()),
               static_cast<unsigned long long>(HostLayer::VMA::SMCFaultCount()));
+  if (const auto Stubs = HostLayer::VMA::StubReport(); Stubs.Armed) {
+    // short-lived executable mappings — the JIT/FFI trampoline idiom. `stale` is the number this
+    // instrument exists for: armed, unmapped, and no block ever compiled on it in between, so
+    // anything the guest ran there came out of a cache rather than out of the bytes it had just
+    // written.
+    std::printf("[host-layer] %llu short-lived executable page(s) armed (%llu by mprotect), %llu compiled, "
+                "%llu stale (%llu at a reused address, %llu armed by mprotect)\n",
+                static_cast<unsigned long long>(Stubs.Armed), static_cast<unsigned long long>(Stubs.Protected),
+                static_cast<unsigned long long>(Stubs.Compiled), static_cast<unsigned long long>(Stubs.Stale),
+                static_cast<unsigned long long>(Stubs.StaleReused), static_cast<unsigned long long>(Stubs.StaleProtected));
+  }
   if (LinuxSyscalls.UnhandledCount()) {
     std::printf("[host-layer] %llu unhandled syscall(s), last was %llu\n",
                 static_cast<unsigned long long>(LinuxSyscalls.UnhandledCount()),
