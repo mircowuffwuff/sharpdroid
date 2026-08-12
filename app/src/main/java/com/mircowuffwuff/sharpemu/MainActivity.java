@@ -393,9 +393,27 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         }
     }
 
+    /**
+     * Every event this window is handed, before any view sees it.
+     *
+     * The panel's own trace says what reached the button; this says what reached the window, so a
+     * cancel that the hierarchy invented can be told from one the input system delivered.
+     */
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+        Log.i(TAG, "[window] action " + event.getActionMasked()
+                + " at " + (int) event.getX() + "," + (int) event.getY()
+                + " raw " + (int) event.getRawX() + "," + (int) event.getRawY()
+                + " since " + (event.getEventTime() - event.getDownTime()) + "ms"
+                + " pointers " + event.getPointerCount()
+                + " flags " + event.getFlags());
+        return super.dispatchTouchEvent(event);
+    }
+
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        Log.i(TAG, "[window] focus " + hasFocus);
         if (hasFocus) {
             goFullscreen();
         }

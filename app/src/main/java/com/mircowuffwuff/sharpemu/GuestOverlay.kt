@@ -1,9 +1,13 @@
 package com.mircowuffwuff.sharpemu
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -85,8 +89,12 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
             // that is not exit_group already takes. the guest is not asked to stop first because
             // there is nothing to ask with: its threads are inside translated code, which is the
             // very reason the host layer answers exit_group with _exit.
-            close()
-            onExit.run()
+            if (EXIT_REALLY_LEAVES) {
+                close()
+                onExit.run()
+            } else {
+                Log.i(TAG, "[overlay] exit withheld, the panel stays up")
+            }
         })
 
         // a cutout sits over the panel in landscape and over nothing else, since the surface below
@@ -94,6 +102,10 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
         // MainActivity stays what SystemBars documents it as: a screen that pads for nothing.
         ViewCompat.setOnApplyWindowInsetsListener(panel) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            Log.i(TAG, "[overlay] insets cutout $insets" +
+                    " gestures ${windowInsets.getInsets(WindowInsetsCompat.Type.systemGestures())}" +
+                    " mandatory ${windowInsets.getInsets(WindowInsetsCompat.Type.mandatorySystemGestures())}" +
+                    " navbars ${windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars())}")
             view.updatePadding(pad + insets.left, pad + insets.top, pad, pad + insets.bottom)
             windowInsets
         }
@@ -150,11 +162,65 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
         val card = LayoutInflater.from(context).inflate(R.layout.item_guest_action, panel, false)
         card.findViewById<ImageView>(R.id.icon).setImageResource(icon)
         card.findViewById<TextView>(R.id.title).setText(label)
-        card.setOnClickListener { onClick() }
+        card.setOnClickListener {
+            Log.i(TAG, "[overlay] click")
+            onClick()
+        }
+        trace(card)
         return card
     }
 
+    /**
+     * Reports every event of a press on the panel's button, and it is an instrument rather than
+     * behaviour: it returns false throughout, so the card handles the gesture exactly as it does
+     * without this.
+     *
+     * A press that lights the ripple and dispatches no click ends in `CANCEL`, and what it says
+     * about *why* is the distance travelled and where the pointer was when it stopped. Leaving the
+     * card's bounds is the view's own doing; a `CANCEL` with the pointer still inside them and no
+     * travel worth the name is the window losing the gesture to somebody else, which on gesture
+     * navigation means the back edge this panel is drawn against.
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private fun trace(card: View) {
+        card.setOnTouchListener { view, event ->
+            Log.i(TAG, "[overlay] card " + describe(event) +
+                    " in ${view.width}x${view.height} at ${view.left},${view.top}" +
+                    " pressed ${view.isPressed}" +
+                    " slop ${ViewConfiguration.get(context).scaledTouchSlop}")
+            false
+        }
+    }
+
     private companion object {
+
+        /**
+         * One event, in enough detail that a cancel can be told from a move that left the view.
+         *
+         * `raw` is the pointer's position on the display and `x,y` its position in the view the
+         * event was delivered to, so the two together say whether an event arrived through the
+         * hierarchy's transform or beside it. `since` is the age of the gesture: a cancel one
+         * millisecond after its own down did not travel anywhere, whatever its coordinates say.
+         */
+        fun describe(event: MotionEvent): String {
+            val action = when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> "down"
+                MotionEvent.ACTION_UP -> "up"
+                MotionEvent.ACTION_MOVE -> "move"
+                MotionEvent.ACTION_CANCEL -> "cancel"
+                MotionEvent.ACTION_OUTSIDE -> "outside"
+                MotionEvent.ACTION_POINTER_DOWN -> "pointer-down"
+                MotionEvent.ACTION_POINTER_UP -> "pointer-up"
+                else -> "action ${event.actionMasked}"
+            }
+            return "$action at ${event.x.toInt()},${event.y.toInt()}" +
+                    " raw ${event.rawX.toInt()},${event.rawY.toInt()}" +
+                    " since ${event.eventTime - event.downTime}ms" +
+                    " pointers ${event.pointerCount}" +
+                    " device ${event.deviceId} source ${event.source}" +
+                    " flags ${event.flags}"
+        }
+
         /**
          * The dim over the game, and **the one colour here that is not the scheme's**.
          *
@@ -169,5 +235,14 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
         /** The settings list's own horizontal padding. The rest of the gap is each button's margin. */
         const val PAD = 10
         const val SLIDE = 160L
+        /** [MainActivity]'s own, so one logcat filter catches a run and the presses on it. */
+        const val TAG = "sharpemu"
+
+        /**
+         * False makes the button report a click and stay where it is, which is what lets a press be
+         * repeated a few hundred times against one running game rather than once per boot. A rate
+         * needs the sample; a button that leaves takes the sample with it.
+         */
+        const val EXIT_REALLY_LEAVES = false
     }
 }
