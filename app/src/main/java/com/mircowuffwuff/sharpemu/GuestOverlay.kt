@@ -1,6 +1,7 @@
 package com.mircowuffwuff.sharpemu
 
 import android.content.Context
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -196,6 +197,11 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
                     val moved = hypot(event.rawX - downX, event.rawY - downY)
                     if (event.pointerCount == 1 && moved <= slop &&
                         event.eventTime - event.downTime < held) {
+                        // the one line this leaves in an ordinary run, and it is here because the
+                        // event it reports cannot be provoked: it says the press was rescued rather
+                        // than lost, which is the difference nobody can see from the outside -- a
+                        // rescued press and one that was never cancelled look identical on screen.
+                        Log.i(TAG, "[app] a cancelled press on the overlay counted as a tap")
                         view.performClick()
                     }
                 }
@@ -219,5 +225,7 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
         /** The settings list's own horizontal padding. The rest of the gap is each button's margin. */
         const val PAD = 10
         const val SLIDE = 160L
+        /** [MainActivity]'s own, so one logcat filter catches a run and what the overlay did in it. */
+        const val TAG = "sharpemu"
     }
 }
