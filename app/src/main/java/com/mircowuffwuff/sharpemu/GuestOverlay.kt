@@ -19,6 +19,7 @@ import com.google.android.material.color.MaterialColors
 // the colour roles are Material's own attributes, and this module's R does not carry them: a
 // non-transitive R class holds what the module itself declares and nothing a library does.
 import com.google.android.material.R as MaterialR
+import kotlin.math.hypot
 
 /**
  * The panel the back button opens over a running game.
@@ -166,28 +167,57 @@ class GuestOverlay(private val context: Context, private val onExit: Runnable) {
             Log.i(TAG, "[overlay] click")
             onClick()
         }
-        trace(card)
+        recoverCancelledTap(card)
         return card
     }
 
     /**
-     * Reports every event of a press on the panel's button, and it is an instrument rather than
-     * behaviour: it returns false throughout, so the card handles the gesture exactly as it does
-     * without this.
+     * Makes a press that the input system cancels count anyway, when the press was going to be a tap.
      *
-     * A press that lights the ripple and dispatches no click ends in `CANCEL`, and what it says
-     * about *why* is the distance travelled and where the pointer was when it stopped. Leaving the
-     * card's bounds is the view's own doing; a `CANCEL` with the pointer still inside them and no
-     * travel worth the name is the window losing the gesture to somebody else, which on gesture
-     * navigation means the back edge this panel is drawn against.
+     * **A gesture on this panel can be cancelled by something that is not the user and not this app.**
+     * The platform reconfigures an input device while a finger is already down -- a touchscreen coming
+     * back from idle is enough -- and every stream in flight is cancelled at that moment. The button
+     * has already lit, because the ripple starts on the press; what never arrives is the click. So the
+     * press looks understood, the panel stays open, and the run does not end, which for **the only way
+     * out of a game that is not the guest's own exit** is the one failure worth writing code against.
+     *
+     * The test is what separates that from a gesture the user abandoned: one finger, no travel beyond
+     * the slop that already defines a tap, and a cancel arriving sooner than a long press. A drag off
+     * the button travels, and a hold that is stolen by something the user *meant* -- a system gesture,
+     * a drag -- is either long or has moved. What is left is a finger that pressed and did not move,
+     * whose intent is not in question.
+     *
+     * **The comparison is in display coordinates on both sides**, which is not a stylistic choice: a
+     * cancel is dispatched to a child without the transform an ordinary event is given, so its view
+     * coordinates and the down's are not in the same space and subtracting them measures the view's
+     * own offset rather than a finger.
+     *
+     * It returns false throughout, so the card handles every gesture exactly as it does without this.
      */
     @SuppressLint("ClickableViewAccessibility")
-    private fun trace(card: View) {
+    private fun recoverCancelledTap(card: View) {
+        var downX = 0f
+        var downY = 0f
+        val slop = ViewConfiguration.get(context).scaledTouchSlop
+        val held = ViewConfiguration.getLongPressTimeout()
         card.setOnTouchListener { view, event ->
             Log.i(TAG, "[overlay] card " + describe(event) +
                     " in ${view.width}x${view.height} at ${view.left},${view.top}" +
-                    " pressed ${view.isPressed}" +
-                    " slop ${ViewConfiguration.get(context).scaledTouchSlop}")
+                    " pressed ${view.isPressed} slop $slop")
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    val moved = hypot(event.rawX - downX, event.rawY - downY)
+                    if (event.pointerCount == 1 && moved <= slop &&
+                        event.eventTime - event.downTime < held) {
+                        Log.i(TAG, "[overlay] cancelled press recovered")
+                        view.performClick()
+                    }
+                }
+            }
             false
         }
     }
