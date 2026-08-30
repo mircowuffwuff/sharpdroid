@@ -75,6 +75,9 @@ def entry():
     vocabulary.add_driver(parser)
     vocabulary.add_package(parser)
     vocabulary.add_common(parser)
+    parser.add_argument("--game-uri", metavar="URI", default=None,
+                        help="hand the app a content:// tree uri on the intent itself, the way an "
+                             "emulation frontend does, instead of naming a game with --game.")
     parser.add_argument("--turbo", action="store_true", help="the guest's turbo flag.")
     parser.add_argument("--audio-watchdog", action="store_true",
                         help="report the audio stream's state once a second whether or not the guest is "
@@ -124,9 +127,17 @@ def entry():
                         help="push over what the device has, whatever the byte counts say.")
     arguments = parser.parse_args()
 
-    # **no --game is the list run**, and it is the whole of how one is asked for. there is nothing
+    # **no game is the list run**, and it is the whole of how one is asked for. there is nothing
     # left for a flag to say: a run naming no game is a run with no guest.
-    runs_guest = bool(arguments.game)
+    #
+    # **--game-uri names one too**, on the intent rather than in an extra, which is how an app
+    # outside this one names a game. it stages nothing -- a uri points at a dump that is already on
+    # the device -- so it is a guest run that skips the step --game would have taken.
+    if arguments.game and arguments.game_uri:
+        raise Refusal("--game and --game-uri both name a game, and an intent carries one.\n"
+                      "  --game <value>     the extra the game list sends\n"
+                      "  --game-uri <uri>   the intent data an emulation frontend sends")
+    runs_guest = bool(arguments.game) or bool(arguments.game_uri)
 
     # **refused rather than dropped.** each of these is an extra only the guest activity reads, and
     # the game list neither receives nor honours any of them -- so accepting one would start a
@@ -181,7 +192,7 @@ def entry():
         _script(["regression.py"])
 
     game = None
-    if runs_guest:
+    if arguments.game:
         step("the game")
         game = resolve.game(attached, package, arguments.game, arguments.restage)
 
@@ -254,7 +265,9 @@ def launch(attached, package, activity, runs_guest, game, build_path, driver, ar
     # the others: a run whose build was left to the app is a run whose build is not in this output,
     # and the next reader of a log needs to know which of the two it was.
     if runs_guest:
-        say("  game    {}".format(game))
+        say("  game    {}".format(arguments.game_uri or game))
+        if arguments.game_uri:
+            say("          named on the intent, the way another app names one")
         if build_path:
             say("  build   {}".format(build_path))
             payload = attached.size_of(build_path + "/SharpEmu")
@@ -283,7 +296,11 @@ def launch(attached, package, activity, runs_guest, game, build_path, driver, ar
     # and a game from what its settings hold, which is the whole point of looking at it.
     extras = {}
     if runs_guest:
-        extras["game"] = game
+        # **a uri and a name are alternatives rather than a pair.** an app outside this one has only
+        # the intent to name a game on, so a run simulating one must not also send the extra the game
+        # list sends -- with both present the app would take the uri and the extra would be dead
+        # weight nobody could see was ignored.
+        extras["game"] = None if arguments.game_uri else game
         extras["sharpemu"] = build_path
         extras["driver"] = driver
         extras["guestenv"] = arguments.guest_env
@@ -305,7 +322,7 @@ def launch(attached, package, activity, runs_guest, game, build_path, driver, ar
 
     attached.force_stop(package)
     attached.clear_log()
-    started = attached.start(package, activity, extras)
+    started = attached.start(package, activity, extras, data=arguments.game_uri)
     if "Error" in started or "Exception" in started:
         raise Refusal("the launch failed:\n{}".format(started.strip()))
 
