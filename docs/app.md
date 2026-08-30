@@ -276,7 +276,7 @@ all of them are read in `onCreate`, because the intent is not readable from a wo
 
 | extra | | default |
 | --- | --- | --- |
-| `--es game <name\|path>` | a directory under `games/` on external storage, **or an absolute path to a game directory**, `eboot.bin` appended either way. a leading slash is the whole distinction and a name under `games/` never has one | a hardcoded title |
+| `--es game <name\|path>` | a directory under `games/` on external storage, **or an absolute path to a game directory or to the `eboot.bin` inside one**. a leading slash is the whole distinction and a name under `games/` never has one. a path this app cannot open is looked for inside a folder the user has already granted, and reached through that, before it is refused | a hardcoded title |
 | `--es sharpemu <path>` | an **absolute path** to a build directory | whatever the build manager settled on |
 | `--es driver <name>` | a staged adrenotools package under `gpu-drivers/`. `stock` and the empty string both mean the platform's own driver | the stock driver |
 | `--es driverenv A=1,B=2` | comma-separated, one `--vulkan-driver-env` each. mesa's knobs, which reach the *host* process | none |
@@ -290,6 +290,8 @@ all of them are read in `onCreate`, because the intent is not readable from a wo
 | `--es safgame <name>` | a directory inside a **granted tree** instead of a staged one, which mounts the guest file layer and hands the guest an invented path. absent, the game is a path and no interception is registered at all | absent |
 | `--es saftree <uri>` | which granted tree that directory is in, checked against the grants the app actually holds. the game list sends it because it knows which folder the row came from; absent, the first persisted read grant is used — exact with one granted folder, arbitrary with two | absent |
 | `--ez strict true` | `--strict` on the **payload's** own command line, which fails a launch on an unresolved import instead of continuing without it. everything after the payload path is the guest's command line, which the host layer passes through without reading | the stored setting, or absent |
+
+**the intent's own data names a game as well, and it is the form another application uses.** a tree uri on `Intent.setData` names the dump's directory or its `eboot.bin`, and it wins over `game` when both are there. it has to be a *tree* uri: a dump is a directory whose `sce_sys/param.json` decides which settings a run merges, and a single-document uri cannot reach it. [`frontends.md`](frontends.md) is the whole of that contract, and it is the page to send somebody integrating against this app.
 
 **a path in `game` is one code path with two callers, not a mode.** the game list sends one for a game in a granted folder while all-files access is on; a script sends one to reach a library outside the app's own directory. either way the guest is handed an ordinary directory it opens with ordinary syscalls, which is what a staged game is — so a run reached that way carries no machinery a staged run does not.
 

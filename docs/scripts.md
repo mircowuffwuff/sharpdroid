@@ -98,6 +98,7 @@ keytool -genkeypair -keystore app/release.keystore -alias sharpdroid \
 **omitting one is not "pick one for me".** it names nothing and lets the app answer:
 
 - **no `--game`** — the app opens its game list and no guest runs. this is the frontend run, and `py scripts/run.py` with nothing else said is what asks for it
+- **`--game-uri <uri>`** instead of `--game` — the game is named on the intent's own data, the way an emulation frontend names one, rather than in an extra. it stages nothing, since a uri points at a dump already on the device, and the two cannot both be given. **`adb shell` cannot attach the read grant a frontend would**: it holds no permission on a content uri, and asking the platform to pass one on fails the launch outright, so the uri goes bare and the app resolves it against the folders it has been granted. [`frontends.md`](frontends.md) is the contract this rehearses
 - **no `--sharpemu`** — no build is named, so the app runs what its build manager settled on, which on an untouched install is the build it ships with. **that is a choice the app holds across runs**, so a run naming no build is not necessarily a run on the bundled one
 - **no `--driver`** — the app loads what its settings hold, which on an untouched install is the platform's own
 
