@@ -8,6 +8,7 @@ import android.view.Choreographer
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 import coil.load
 import com.google.android.material.imageview.ShapeableImageView
@@ -86,6 +87,8 @@ class GuestLoading(
     private val detail: TextView = root.findViewById(R.id.loading_detail)
     private val bar: LinearProgressIndicator = root.findViewById(R.id.loading_bar)
     private val percent: TextView = root.findViewById(R.id.loading_percent)
+    private val reason: TextView = root.findViewById(R.id.loading_reason)
+    private val close: Button = root.findViewById(R.id.loading_close)
 
     /** the host layer's own checkpoint ids, in order. asked for once, at [booting]. */
     private var ids: Array<String> = emptyArray()
@@ -175,6 +178,34 @@ class GuestLoading(
             placeholder(R.drawable.ic_game_placeholder)
             error(R.drawable.ic_game_placeholder)
         }
+    }
+
+    /**
+     * this launch is not going to happen, and [why] is the reason a person reads.
+     *
+     * **the card stays and becomes the message**, rather than a dialog or a toast over it. it already
+     * holds the game's name and its cover and it is already the only thing on the screen, so the
+     * whole change is that the bar and its figure give way to a sentence and a button.
+     *
+     * **and the run is not over until [dismissed] runs.** a toast cannot say this: it belongs to the
+     * process that posted it, and `:guest` is killed a few hundred milliseconds after giving up,
+     * which takes the toast with it. so this waits instead, and the button is the only way out --
+     * which is what makes the message readable at all for a launch that came from another app, where
+     * there is nothing of ours left on the screen behind it and no log to fall back on.
+     *
+     * called on the main thread, from `MainActivity.abort`.
+     */
+    fun refuse(why: String, dismissed: Runnable) {
+        // the poll stops first, or a checkpoint arriving a frame later would move a bar that is no
+        // longer on the card.
+        polling = false
+        bar.visibility = View.GONE
+        percent.visibility = View.GONE
+        detail.visibility = View.GONE
+        reason.visibility = View.VISIBLE
+        reason.text = why
+        close.visibility = View.VISIBLE
+        close.setOnClickListener { dismissed.run() }
     }
 
     /**

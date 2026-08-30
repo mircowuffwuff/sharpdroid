@@ -76,6 +76,17 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private String refusal;
 
     /**
+     * whether this launch gave up, which is what decides who ends it.
+     *
+     * <p><b>a refused run does not end itself.</b> the reason is drawn on the loading screen's own
+     * card and the process is held open until the button on it is pressed -- see {@link #abort}. the
+     * host layer's thread reads this to know not to tear down a screen somebody is still reading.
+     *
+     * <p>volatile because it is written on that thread and read on the main one.
+     */
+    private volatile boolean refused;
+
+    /**
      * which staged GPU driver to inject, or null for the stock Adreno one.
      *
      * <p>a folder name: a package the driver manager imported, or one staged under
@@ -736,19 +747,25 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
      */
     private void abort(String message) {
         AppLog.e(TAG, "[app] " + message);
+        refused = true;
         runOnUiThread(() -> {
-            // **handed to whoever started this rather than said here, when there is somebody to hand
-            // it to.** a toast belongs to the process that posted it, and this process is about to
-            // end: the platform cancels it along with us a few hundred milliseconds later, and what
-            // a person sees is a flicker too short to read. the game list is in the process that
-            // survives, so it says this instead -- see its own launcher.
+            // **handed to whoever started this as well as said here**, because the two reach
+            // different people. a screen of ours that started this run for a result puts the
+            // sentence where the person came from, which is where they will be a moment later; the
+            // card below is for everybody else.
             setResult(RESULT_FIRST_USER, new Intent().putExtra(ABORT_MESSAGE, message));
-            // and when nothing started us for a result -- `am start`, every script -- there is nobody
-            // to hand it to, so it is said here for what that is worth. the log is the real answer
-            // on that path and it is the line above.
-            if (getCallingActivity() == null) {
-                Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+            if (getCallingActivity() != null) {
+                endRun();
+                return;
             }
+            // **and when nothing started us for a result, this process is the only one that can say
+            // it, so it says it and waits.** a toast cannot: it belongs to the process that posted
+            // it, and killing ourselves a few hundred milliseconds later takes it with us, which is
+            // a flicker too short to read. an app outside this one -- an emulation frontend, an
+            // `am start` -- is exactly that case, and it is the one where a person has no log.
+            //
+            // the wait is the whole mechanism: nothing ends the run until the button does.
+            loading.refuse(message, this::endRun);
         });
     }
 
@@ -830,7 +847,12 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             // ended this process, which is the same thing endRun arranges.
             new Thread(() -> {
                 runGuest();
-                endRun();
+                // **a refused launch has already drawn its reason and is waiting to be read**, so
+                // ending here would take the card away in the same frame it appeared. the button on
+                // it is what ends that run -- see abort.
+                if (!refused) {
+                    endRun();
+                }
             }, "sharpdroid-host-layer").start();
         }
     }

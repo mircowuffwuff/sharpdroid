@@ -58,10 +58,18 @@
     <!-- **160dp, and the artwork is a 160dp square inside it.** icon0.png is square, so a panel of
          any other proportion crops it - and a cover whose art reaches its own edges loses that art
          rather than losing margin. tying the panel's width to the card's height is what makes the
-         crop impossible rather than merely unlikely. -->
+         crop impossible rather than merely unlikely.
+
+         **it is a minimum rather than a fixed height, and the reason the height was pinned is
+         untouched by that.** what a fixed height prevents is the card growing a line partway through
+         a wait, when the bar gains a figure - and every view that can appear during a boot still fits
+         inside 160dp, so the card is the same size for the whole of one and between one launch and
+         the next. a refusal is the only thing that makes it taller, and a refusal is terminal: there
+         is no boot left underneath for a resize to disturb. -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="0dp"
-        android:layout_height="160dp"
+        android:layout_height="wrap_content"
+        android:minHeight="160dp"
         android:layout_marginHorizontal="24dp"
         app:cardBackgroundColor="?attr/colorSurfaceContainer"
         app:cardElevation="0dp"
@@ -184,6 +192,41 @@
                      the opposite of what it was and follows from the card's height being fixed. a
                      view that is gone closes the space it occupied, so an indeterminate launch would
                      centre a shorter block in the same card and put every line somewhere else. -->
+                <!-- **what a launch says when it is not going to happen**, and the two of them
+                     replace the bar and its figure rather than joining them: there is no progress
+                     to report once a run has given up, and a bar left on the card would say there
+                     still is.
+
+                     both are gone until there is something to refuse, so an ordinary boot lays out
+                     exactly the block it always did. the reason wraps - it is a sentence rather
+                     than a phase name, and it is the one thing on this card somebody has to read
+                     rather than glance at.
+
+                     the button ends the run, which is what takes this process with it. it is the
+                     only way out of a refused launch, so it is the only thing on the card that can
+                     be pressed. -->
+                <TextView
+                    android:id="@+id/loading_reason"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:visibility="gone"
+                    tools:text="Could not find Dreaming Sarah. It may have been moved or deleted."
+                    tools:visibility="visible" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/loading_close"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="end"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/launch_close"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
+
                 <TextView
                     android:id="@+id/loading_percent"
                     android:layout_width="match_parent"

@@ -460,6 +460,7 @@
     <string name="launch_grant_revoked">The folder this game is in is no longer shared with this app. Add it again in Settings, under Game files.</string>
     <string name="launch_no_game">This launch did not say which game to run.</string>
     <string name="launch_game_missing">Could not find %1$s. It may have been moved or deleted.</string>
+    <string name="launch_close">Close</string>
 
     <!-- what the loading screen says while a launch is not ready yet. **the heading is the game and
          these are the line under it**, so the only thing changing during a boot is the sentence that
