@@ -100,7 +100,15 @@ object LaunchGame {
      *
      * **what the uri resolves to is a document only while the app has no better way to the file.**
      * with all-files access held it becomes an ordinary path, exactly as it does for a game tapped on
-     * the list -- [AllFiles] decides, per launch, and both callers ask it the same question.
+     * the list -- [AllFiles] decides, per launch, and both callers ask it the same question. that is
+     * asked *before* the provider, because it is the answer that needs no grant: a folder nobody has
+     * added to the library is unreachable through a provider and perfectly readable as a path.
+     *
+     * **and a grant attached to the intent does not reach inside the directory it names.** a uri
+     * permission passed with an intent covers that one document; the eboot, `param.json` and the rest
+     * are children of it, and a receiving app is refused when it asks for them. so the uri form
+     * answers for a folder this app has been given -- which is what adding it under Game files does
+     * -- or for any folder at all while all-files access is held, and the path form answers the rest.
      */
     private fun fromUri(context: Context, uri: Uri): Resolved {
         // a frontend holding all-files access may send an ordinary path with a scheme on it. that is
@@ -117,47 +125,47 @@ object LaunchGame {
         val named =
             if (DocumentsContract.isDocumentUri(context, uri)) DocumentsContract.getDocumentId(uri)
             else DocumentsContract.getTreeDocumentId(uri)
-        val directory = directoryOf(resolver, uri, named)
-        if (directory == null) {
-            AppLog.e(TAG, "[app] no " + Game.EBOOT + " under " + named + ", and it is not an "
-                + Game.EBOOT + " either")
-            return Resolved.Refused(
-                context.getString(R.string.launch_game_missing, named.substringAfterLast('/'))
-            )
-        }
-        // **with all-files access held this is an ordinary path, which is the branch a tap on the
-        // list already takes** -- see [GameLaunch]. it is the same call there and here, so one game
-        // reaches the guest the same way whichever door it came in by, and the permission means one
-        // thing rather than one thing per caller.
-        AllFiles.pathTo(directory)?.let {
-            AppLog.i(TAG, "[app] the intent named " + directory + ", opened as " + it
-                + " with all-files access")
-            return Resolved.Found(GameSource.Staged(it))
-        }
-        AppLog.i(TAG, "[app] the intent named " + directory + ", reached through the grant it"
-            + " arrived with")
-        return Resolved.Found(
-            GameSource.Granted(uri, directory, directory.substringAfterLast('/'), resolver)
-        )
-    }
+        // **the id may name the dump's directory or the eboot inside it**, and the eboot spelling is
+        // tried as its parent first so that the ordinary case asks one question rather than two. the
+        // id itself stays a candidate either way, which is what tells a directory that happens to be
+        // called `eboot.bin` from a dump whose eboot is missing.
+        val candidates =
+            if (named.endsWith("/" + Game.EBOOT))
+                listOf(named.substring(0, named.length - Game.EBOOT.length - 1), named)
+            else listOf(named)
 
-    /**
-     * which of [named] and its parent is the game's directory, or null when neither is.
-     *
-     * the test is the one the library's scan applies and the one the mount applies: an `eboot.bin`
-     * is there. **asked of the document rather than read off its name**, so a directory that happens
-     * to be called `eboot.bin` and a dump whose eboot is missing are told apart by the answer rather
-     * than by the spelling.
-     */
-    private fun directoryOf(resolver: ContentResolver, tree: Uri, named: String): String? {
-        if (exists(resolver, tree, TreeDocument.childId(named, Game.EBOOT))) {
-            return named
+        // **all-files access is asked first, because it is the answer that needs no grant.** the
+        // provider query below can only answer for a folder this app has been given, so asking it
+        // first would refuse a launch whose files the app is perfectly able to read -- which is what
+        // a frontend naming a folder nobody added to the library looks like. it is also the branch a
+        // tap on the list takes, so one game reaches the guest the same way whichever door it came
+        // in by.
+        for (candidate in candidates) {
+            AllFiles.pathTo(candidate)?.let {
+                AppLog.i(TAG, "[app] the intent named " + candidate + ", opened as " + it
+                    + " with all-files access")
+                return Resolved.Found(GameSource.Staged(it))
+            }
         }
-        if (!named.endsWith("/" + Game.EBOOT)) {
-            return null
+
+        // and otherwise through the grant the uri came with, or one this app already holds over the
+        // same tree. the test is the one the library's scan applies and the one the mount applies: an
+        // eboot is there, asked of the document rather than read off its name.
+        for (candidate in candidates) {
+            if (exists(resolver, uri, TreeDocument.childId(candidate, Game.EBOOT))) {
+                AppLog.i(TAG, "[app] the intent named " + candidate + ", reached through a grant")
+                return Resolved.Found(
+                    GameSource.Granted(uri, candidate, candidate.substringAfterLast('/'), resolver)
+                )
+            }
         }
-        val parent = named.substring(0, named.length - Game.EBOOT.length - 1)
-        return if (exists(resolver, tree, TreeDocument.childId(parent, Game.EBOOT))) parent else null
+
+        AppLog.e(TAG, "[app] no " + Game.EBOOT + " under " + named + ", and it is not an "
+            + Game.EBOOT + " either -- this app holds no grant covering it and cannot open it as a"
+            + " path")
+        return Resolved.Refused(
+            context.getString(R.string.launch_game_missing, named.substringAfterLast('/'))
+        )
     }
 
     /** whether a document is there, asked with a query rather than an open. */
