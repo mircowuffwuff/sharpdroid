@@ -6,7 +6,8 @@
 #
 #   existing        use what is already on the device, and say which it took
 #   <a path here>   staged if the device has not got those bytes, reused if it has
-#   /storage/...    used where it lies. nothing is staged and nothing is copied
+#   /storage/...    used where it lies. nothing is staged and nothing is copied. a game may be
+#                   named by its directory or by the eboot.bin inside it
 #   none, omitted   nothing is named, and whatever is downstream answers
 #
 # **a byte count decides whether something is already there, never a name.** a rebuilt artefact keeps
@@ -27,6 +28,10 @@ def game(attached, package, value, restage=False):
 
     what comes back is a *name* for a staged game and an absolute path for one used where it lies.
     the app takes either, and which of the two it was is worth saying in the log.
+
+    **a device path may name the game's directory or the `eboot.bin` inside it**, which is what the
+    app accepts and what an emulation frontend is most likely to be holding. it is reduced to the
+    directory here so that one game named the two ways is one value downstream.
     """
     source = vocabulary.read(value)
     vocabulary.accept(source, (vocabulary.EXISTING, vocabulary.PC_PATH, vocabulary.DEVICE_PATH,
@@ -48,10 +53,15 @@ def game(attached, package, value, restage=False):
         return staged[0]
 
     if source.kind == vocabulary.DEVICE_PATH:
-        if not attached.exists(source.raw + "/eboot.bin"):
+        # **the directory or the eboot inside it, because the app takes either.** a library that
+        # scanned a device for games holds the file it found rather than the folder around it, so
+        # refusing the file here would refuse the shape most callers have -- and would refuse it in a
+        # script while the app it launches accepts it.
+        path = source.raw[:-len("/eboot.bin")] if source.raw.endswith("/eboot.bin") else source.raw
+        if not attached.exists(path + "/eboot.bin"):
             raise Refusal("no eboot.bin at {} -- that is not a game directory on the device".format(
-                source.raw))
-        return source.raw
+                path))
+        return path
 
     _stage(["--game", source.raw], attached, package, restage)
     return Path(source.raw).name
