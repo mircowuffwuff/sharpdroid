@@ -111,6 +111,7 @@ data class Game(
          * `sce_sys/`, a truncated `param.json`, a `param.json` that is not JSON at all -- each of
          * those is a game that boots perfectly well, so none of them may cost a row.
          */
+        @JvmStatic
         fun read(source: GameSource): Game {
             val param = readParam(source)
             // **the strict read of the same field, and deliberately not the `titleId` line below.**

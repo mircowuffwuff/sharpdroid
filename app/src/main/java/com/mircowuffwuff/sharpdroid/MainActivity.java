@@ -244,7 +244,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private boolean diskShaderCache;
 
     /**
-     * the title id the emulator will resolve for this launch's game -- see {@link #resolveTitleId()}.
+     * the title id the emulator will resolve for this launch's game -- see {@link #game}.
      *
      * <p>read once, in {@code onCreate}, and used twice: to find the game's own settings store, and
      * to name the per-title pipeline cache the emulator is handed.
@@ -306,13 +306,20 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private GuestLoading loading;
 
     /**
-     * the game's display name and its cover, as the launch handed them down.
+     * this launch's game as the dump describes itself: its title, its identity and its artwork.
      *
-     * <p><b>absent is ordinary and is what {@code am start} sends.</b> the name falls back to the
-     * directory, which is what this activity has always been given; the cover is simply not drawn.
+     * <p><b>read here rather than handed down, and that is one extra fewer on every launch.</b> the
+     * activity has always had to open {@code sce_sys/param.json} anyway -- the settings this run
+     * merges are keyed by the title id inside it -- so a name and a cover sent alongside would be
+     * two extras describing a file that is being parsed regardless.
+     *
+     * <p><b>and it is what makes a launch from outside this app look like a tap on the list.</b> an
+     * app that starts a game has the game and nothing else: it cannot know this dump's display name
+     * and it has no cover to send. reading both from the dump means it does not have to.
+     *
+     * <p>null when the launch could not name a game -- see {@link #source}.
      */
-    private String gameDisplayName;
-    private String gameIcon;
+    private Game game;
 
     /**
      * whether the loading screen draws its bar against a prediction, or simply says a boot is
@@ -343,12 +350,6 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         //
         // the driver manager's choice is merged in below, with the rest of what the user chose.
         driverName = getIntent().getStringExtra("driver");
-        // what the loading screen puts in front of somebody waiting. neither reaches the argument
-        // vector and neither can: they are what this launch is *about*, said to the person who
-        // started it, and the host layer has no use for either. see GameLaunch, which is where both
-        // are put on the intent.
-        gameDisplayName = getIntent().getStringExtra("gamename");
-        gameIcon = getIntent().getStringExtra("gameicon");
         // and mesa's own knobs, comma-separated: --es driverenv TU_DEBUG=sysmem,TU_DEBUG=noubwc
         String env = getIntent().getStringExtra("driverenv");
         if (env != null && !env.isEmpty()) {
@@ -424,8 +425,9 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         //
         // it is keyed by the title id the emulator itself resolves, which is also what names this
         // game's save data and its pipeline cache -- one game, one name, in all three places.
-        titleId = resolveTitleId();
-        configKey = Game.configKeyFor(titleId, source != null ? source.getFolder() : "");
+        game = source == null ? null : Game.read(source);
+        titleId = game != null ? game.getEmulatorTitleId() : Game.UNKNOWN_TITLE_ID;
+        configKey = game != null ? game.getConfigKey() : "";
         settings = Settings.forGame(this, configKey);
         // **the intent wins over the driver manager, and the manager over the constant.** an
         // untouched row leaves the store empty and the constant is null, so a launch that names
@@ -679,14 +681,12 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         // under the back overlay, because the panel is how a person leaves a launch that is still
         // loading -- a screen that covered it would be the one moment in a run with no way out.
         loading = new GuestLoading(themed, this::onFirstFrame);
+        // **the dump's own name and cover, from the read onCreate already did.** the icon is a File
+        // for a staged game and a content uri for a granted one -- the split GameSource makes, and
+        // the only two things coil is ever handed here.
         loading.describe(
-                gameDisplayName != null && !gameDisplayName.isEmpty()
-                        ? gameDisplayName
-                        : source != null ? source.getFolder() : "",
-                // a path is a File and anything else is a content uri, which is the same split
-                // GameSource makes and the only two things coil is ever handed here.
-                gameIcon == null || gameIcon.isEmpty() ? null
-                        : gameIcon.startsWith("/") ? new File(gameIcon) : Uri.parse(gameIcon));
+                game != null ? game.getName() : "",
+                source != null ? source.getIcon() : null);
         root.addView(loading.view(), new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -1173,20 +1173,6 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         return eboot.getAbsolutePath();
     }
 
-    /**
-     * the title id the emulator will resolve for this launch's game, read the way it reads one.
-     *
-     * <p><b>every failure answers {@code UNKNOWN}</b> rather than refusing: a dump with no
-     * {@code param.json} is a game that boots perfectly well, and a game that is not there at all is
-     * a case {@link #runGuest} reports properly a moment later.
-     */
-    private String resolveTitleId() {
-        if (source == null) {
-            return Game.UNKNOWN_TITLE_ID;
-        }
-        return Game.emulatorTitleId(source.openParam(), source.getFolder());
-    }
-
     private void runGuest() {
         // **the game this launch named, settled in onCreate, and the first thing asked about.**
         // nothing below is worth doing for a launch that never worked out what to run -- and this
@@ -1240,7 +1226,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         // all-files access is on. the second is deliberately not a mode of its own -- it is this one,
         // pointed somewhere else.
         // the title id was resolved in onCreate, because the settings this run merges are keyed by
-        // it -- see resolveTitleId. it names the pipeline cache's directory below, which is the
+        // it -- see the game field. it names the pipeline cache's directory below, which is the
         // emulator's to name everywhere except here.
         String guestGame = openGame();
         if (guestGame == null) {

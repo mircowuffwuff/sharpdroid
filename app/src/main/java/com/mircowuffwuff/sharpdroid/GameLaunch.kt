@@ -2,8 +2,6 @@ package com.mircowuffwuff.sharpdroid
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import java.io.File
 
 /**
  * the intent that starts a guest, built in one place because more than one screen starts one.
@@ -12,6 +10,12 @@ import java.io.File
  * wrong is not a crash but a launch that reads the wrong directory -- so it is written once. a screen
  * that assembled its own would be a second answer to that question, wrong the day either kind of
  * source grows a second way in.
+ *
+ * **the name and the cover a launch shows are not sent, and that is not an omission.** the loading
+ * screen reads both from the dump, out of the `param.json` [MainActivity] opens anyway to key this
+ * run's settings -- so sending them would be two extras describing a file that is parsed regardless,
+ * and a launch from outside this app would be the one that had neither. one read, one answer, and a
+ * game started by another app arrives looking exactly like a tap on the list.
  *
  * **every other extra is left absent on purpose, and a settings scene existing does not change
  * that.** absent is a real answer everywhere [MainActivity] reads one: no `sharpemu` means the most
@@ -52,23 +56,6 @@ object GameLaunch {
      */
     fun intent(context: Context, source: GameSource, name: String, from: From): Intent {
         val intent = Intent(context, MainActivity::class.java)
-        // **what the loading screen shows, and it is sent from here because only here has it.** the
-        // extras above name a directory, which is what the host layer opens; a person waiting in front
-        // of a black screen wants the name and the cover they tapped. reading them on the other side
-        // would mean parsing the dump a second time, on the launch's own critical path, to arrive at
-        // what this screen already holds.
-        //
-        // **both are absent from an `am start`, and absent is a real answer**: the loading screen falls
-        // back to the directory name and draws no artwork. that keeps the intent path a control arm --
-        // a scripted launch is the same launch it always was.
-        intent.putExtra("gamename", name)
-        // a File for a staged game and a content:// uri for a granted one, as the string each is. a
-        // grant belongs to the package rather than to a process, so the uri is readable in `:guest`
-        // for the same reason a granted game boots there at all.
-        when (val icon = source.icon) {
-            is File -> intent.putExtra("gameicon", icon.absolutePath)
-            is Uri -> intent.putExtra("gameicon", icon.toString())
-        }
         val how = when (source) {
             is GameSource.Staged -> {
                 intent.putExtra("game", source.folder)
