@@ -40,11 +40,13 @@ content://com.android.externalstorage.documents/tree/primary%3Aroms%2Fps5/docume
 
 **attach the read grant.** the uri is used through whatever permission stands behind it, and the app does not ask who granted it: a transient grant on the intent and a folder the user gave this app long ago are the same thing here. a uri with no grant behind it is refused like any unreadable game.
 
+**what the uri resolves to is a document only while that is the app's best way to the file.** where the person has given this app all-files access, the game is opened as an ordinary path instead — which is what a tap on the app's own list does with that permission held, and the two produce the same launch. nothing changes for you: send the uri either way.
+
 a `file://` uri is treated as the path form below.
 
 ### the path form
 
-`--es game` takes an absolute path, and has since before any of this. a frontend holding all-files access can simply send what its database holds.
+`--es game` takes an absolute path, and has since before any of this. a frontend holding all-files access can simply send what its database holds — the directory, or the `eboot.bin` in it.
 
 **a path this app cannot open is looked for inside a folder the user has already granted it**, and reached through that instead, before anything is refused. all-files access is an opt-in here that is off by default, so a path that is readable to you may not be readable to this app — and a game the user has already pointed the app at should not need a second permission to start.
 

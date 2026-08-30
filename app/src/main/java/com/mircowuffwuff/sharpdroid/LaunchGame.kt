@@ -97,6 +97,10 @@ object LaunchGame {
      * **who granted the uri is deliberately not asked.** it may be a transient grant the frontend
      * attached to the intent, or a folder the user gave this app long ago -- the question that
      * decides a launch is whether the dump can be read through it, and that is the question asked.
+     *
+     * **what the uri resolves to is a document only while the app has no better way to the file.**
+     * with all-files access held it becomes an ordinary path, exactly as it does for a game tapped on
+     * the list -- [AllFiles] decides, per launch, and both callers ask it the same question.
      */
     private fun fromUri(context: Context, uri: Uri): Resolved {
         // a frontend holding all-files access may send an ordinary path with a scheme on it. that is
@@ -120,6 +124,15 @@ object LaunchGame {
             return Resolved.Refused(
                 context.getString(R.string.launch_game_missing, named.substringAfterLast('/'))
             )
+        }
+        // **with all-files access held this is an ordinary path, which is the branch a tap on the
+        // list already takes** -- see [GameLaunch]. it is the same call there and here, so one game
+        // reaches the guest the same way whichever door it came in by, and the permission means one
+        // thing rather than one thing per caller.
+        AllFiles.pathTo(directory)?.let {
+            AppLog.i(TAG, "[app] the intent named " + directory + ", opened as " + it
+                + " with all-files access")
+            return Resolved.Found(GameSource.Staged(it))
         }
         AppLog.i(TAG, "[app] the intent named " + directory + ", reached through the grant it"
             + " arrived with")
