@@ -51,44 +51,29 @@ import java.util.Map;
 public final class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     private static final String TAG = "sharpdroid";
-    /**
-     * the game directory under {@code <external files>/games/}, without the {@code eboot.bin}.
-     *
-     * <p>overridden per launch by {@code --es game <name>}, for the same reason the driver is an
-     * extra: comparing titles should not cost an APK rebuild.
-     */
-    private static final String GAME = "Dreaming Sarah [PPSA02929]";
 
     /**
-     * {@code --es game}: a directory name under {@code games/}, <b>or an absolute path to one</b>.
+     * which game this launch runs, and where its files are.
      *
-     * <p><b>a leading slash is the whole distinction, and it cannot be ambiguous</b> -- a directory
-     * name under {@code games/} does not begin with one. a path is what the game list sends for a
-     * game in a granted folder while all-files access is held, and what a script sends to reach a
-     * library outside the app's own directory. either way it is one code path, and it is the one a
-     * staged game has always taken: an ordinary directory the guest opens with ordinary syscalls,
-     * with no interception registered anywhere.
+     * <p><b>resolved once, in {@code onCreate}, by {@link LaunchGame}</b> -- which is the only thing
+     * in the app that reads the extras naming a game. everything here asks the source instead of
+     * reading them again, and the one question it is ever asked is which kind it is: a staged
+     * directory the guest opens with ordinary syscalls, or a directory inside a granted tree that is
+     * mounted and answered through a content provider.
+     *
+     * <p>null when the launch could not name a game it can reach, in which case {@link #refusal}
+     * says why.
      */
-    private String gameName;
+    private GameSource source;
 
     /**
-     * {@code --es safgame <directory name>}, a game inside the granted tree instead of a staged one.
+     * why nothing is going to run, or null when something is.
      *
-     * <p>null means the staged path, which is the mode every script uses and every number was
-     * measured on. the two are deliberately reachable side by side, on the same build, so the cost of
-     * the file layer stays something that can be measured rather than argued about.
+     * <p><b>held rather than said immediately.</b> the resolution happens in {@code onCreate}, which
+     * has no window to say anything in yet -- the loading screen is built with the surface, and the
+     * surface is what {@link #runGuest} waits for. so the sentence waits with it.
      */
-    private String safGameName;
-
-    /**
-     * {@code --es saftree <tree uri>}, which of the granted trees {@link #safGameName} is in.
-     *
-     * <p><b>absent means the first persisted read grant this app holds</b>, which is what
-     * {@code am start --es safgame} means from a script. with one grant that is the same answer as
-     * naming it; with two it is not, and the list is the only thing that knows which the user
-     * tapped.
-     */
-    private String safTreeUri;
+    private String refusal;
 
     /**
      * which staged GPU driver to inject, or null for the stock Adreno one.
@@ -404,20 +389,18 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         if (genv != null && !genv.isEmpty()) {
             guestEnv = genv.split(",");
         }
-        gameName = getIntent().getStringExtra("game");
-        if (gameName == null || gameName.isEmpty()) {
-            gameName = GAME;
+        // **which game, resolved once and for all here.** the three extras that can name one --
+        // `game`, `safgame` and `saftree` -- are read by LaunchGame and by nothing else, and what
+        // comes back is a GameSource: the same type the game list scans a library into. a launch
+        // that cannot name a game it can reach comes back refused, carrying the sentence to show.
+        File externalRoot = getExternalFilesDir(null);
+        LaunchGame.Resolved resolved = LaunchGame.of(this, getIntent(),
+                externalRoot == null ? null : AppStorage.games(externalRoot));
+        if (resolved instanceof LaunchGame.Resolved.Refused) {
+            refusal = ((LaunchGame.Resolved.Refused) resolved).getWhy();
+        } else {
+            source = ((LaunchGame.Resolved.Found) resolved).getSource();
         }
-        // --es safgame <directory name>, naming a game inside the tree the user granted rather than
-        // one staged into the app's own directory. **absent is the whole point**: without it nothing
-        // here changes, the game is a path, no interception is registered, and the run is exactly the
-        // one every measurement so far was taken on. that is what keeps a frame rate measured through
-        // the scripts free of any alibi.
-        safGameName = getIntent().getStringExtra("safgame");
-        // --es saftree <tree uri>, naming which grant that directory is in. the game list sends it
-        // because it knows which folder the row came out of; a script omits it and gets the first
-        // grant, which is what a device with one granted folder means either way.
-        safTreeUri = getIntent().getStringExtra("saftree");
         // --es sharpemu <absolute path>, in the shape --es driver and --es game already have:
         // comparing two builds should be a loop over `am start`, not an APK rebuild per candidate.
         // **a path, never an id** -- see resolvePayload for why an id is refused. null here means
@@ -442,7 +425,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         // it is keyed by the title id the emulator itself resolves, which is also what names this
         // game's save data and its pipeline cache -- one game, one name, in all three places.
         titleId = resolveTitleId();
-        configKey = Game.configKeyFor(titleId, gameFolderName());
+        configKey = Game.configKeyFor(titleId, source != null ? source.getFolder() : "");
         settings = Settings.forGame(this, configKey);
         // **the intent wins over the driver manager, and the manager over the constant.** an
         // untouched row leaves the store empty and the constant is null, so a launch that names
@@ -698,7 +681,8 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         loading = new GuestLoading(themed, this::onFirstFrame);
         loading.describe(
                 gameDisplayName != null && !gameDisplayName.isEmpty()
-                        ? gameDisplayName : gameFolderName(),
+                        ? gameDisplayName
+                        : source != null ? source.getFolder() : "",
                 // a path is a File and anything else is a content uri, which is the same split
                 // GameSource makes and the only two things coil is ever handed here.
                 gameIcon == null || gameIcon.isEmpty() ? null
@@ -1132,61 +1116,6 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     }
 
     /**
-     * points the guest file layer at a game inside a tree the user has already granted us.
-     *
-     * <p><b>the tree is named by the launch, and only falls back to a guess when it is not.</b> the
-     * game list sends {@code --es saftree} because it knows which granted folder the row came out of.
-     * a launch that says nothing takes the first persisted read permission this app holds: exact
-     * with one granted folder, arbitrary with two, and it stays because it is what
-     * {@code am start --es safgame} means from a script.
-     *
-     * <p><b>a named tree is checked against what we actually hold rather than trusted.</b> a grant
-     * revoked in android's own settings, or a volume that is not mounted, would otherwise reach the
-     * guest as a game whose every file is missing -- which reads as a corrupt dump rather than as
-     * access that is gone.
-     */
-    private boolean mountSafGame() {
-        Uri named = safTreeUri != null && !safTreeUri.isEmpty() ? Uri.parse(safTreeUri) : null;
-        Uri tree = grantedTree();
-        if (tree == null) {
-            if (named != null) {
-                AppLog.e(TAG, "[app] --es saftree named " + named + " and this app does not hold a read"
-                        + " grant on it. it was revoked, or the volume is not mounted");
-            } else {
-                AppLog.e(TAG, "[app] --es safgame needs a granted directory and this app holds none."
-                        + " add one from Settings > Data > Game folders first");
-            }
-            return false;
-        }
-        AppLog.i(TAG, "[app] the game is in the granted tree " + tree
-                + (named == null ? " (the first one held, since the launch named none)" : ""));
-        return GuestFiles.mount(this, tree, safGameName);
-    }
-
-    /**
-     * which granted tree this launch's game is in, or null if we hold none that fits.
-     *
-     * <p><b>it says nothing.</b> two things ask -- the identity resolved in {@code onCreate} and the
-     * mount in {@code runGuest} -- and a message printed by both would report one missing grant twice.
-     * {@link #mountSafGame()} is the one that explains, because it is the one that refuses a launch.
-     */
-    private Uri grantedTree() {
-        Uri named = safTreeUri != null && !safTreeUri.isEmpty() ? Uri.parse(safTreeUri) : null;
-        for (UriPermission held : getContentResolver().getPersistedUriPermissions()) {
-            if (!held.isReadPermission()) {
-                continue;
-            }
-            if (named == null) {
-                return held.getUri();
-            }
-            if (named.equals(held.getUri())) {
-                return named;
-            }
-        }
-        return null;
-    }
-
-    /**
      * the title id the emulator will resolve for this launch's game, read the way it reads one.
      *
      * <p><b>in {@code onCreate}, because the settings this run merges are keyed by it.</b> a game's
@@ -1194,55 +1123,82 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
      * resolved or installed -- so this is read early rather than beside the pipeline cache line it
      * also names. it is read <b>once</b> and both uses take the field.
      *
-     * <p><b>all three ways in answer through {@link GameSource}, including the granted one, and that
-     * needs no mount.</b> a child document's id is its parent's plus {@code /name} -- see
-     * {@link TreeDocument} -- so the tree and the directory's name are the whole of what it takes to
-     * open a file inside a grant. the host layer's mount is for the guest's own reads and stays where
-     * it is, in {@code runGuest}, behind the driver check that has to come first.
+     * <p><b>both kinds of source answer it the same way, and the granted one needs no mount.</b>
+     * {@link GameSource} opens {@code param.json} through whichever mechanism its kind implies, and
+     * for a granted game that is a document read, which the grant alone is enough for. the host
+     * layer's mount is for the <i>guest's</i> reads and stays where it is, in {@link #runGuest},
+     * behind the driver check that has to come first.
      *
-     * <p><b>every failure answers {@code UNKNOWN}</b> rather than refusing: a game that is not there,
-     * a grant that is gone or a dump with no {@code param.json} are all cases {@code runGuest} reports
-     * properly a moment later, and a launch that dies here would report them worse.
+     * <p><b>every failure answers {@code UNKNOWN}</b> rather than refusing: a dump with no
+     * {@code param.json} is a game that boots perfectly well, and a game that is not there at all is
+     * a case {@link #runGuest} reports properly a moment later.
      */
-    private String resolveTitleId() {
-        if (safGameName != null && !safGameName.isEmpty()) {
-            Uri tree = grantedTree();
-            if (tree == null) {
-                return Game.UNKNOWN_TITLE_ID;
+    /**
+     * makes this launch's game readable by the guest, and answers the path the guest will open.
+     *
+     * <p><b>this is the only place the two kinds of source mean anything different to a run</b>, and
+     * the difference is one question: is there a path, or is there not. a staged directory is a real
+     * one and the guest opens {@code eboot.bin} inside it with an ordinary {@code openat}; a granted
+     * directory is not a path at all, so the file layer is pointed at it and the guest is handed an
+     * invented path under {@link GuestFiles#MOUNT}. everything after this point is the same argument
+     * vector either way.
+     *
+     * <p><b>each kind is checked before it is handed over, and for the same reason:</b> a game that
+     * is not there would otherwise become a guest whose every file is missing, which reads as a
+     * corrupt dump rather than as a game that was never found.
+     *
+     * @return the guest's path to {@code eboot.bin}, or null when the run has been refused
+     */
+    private String openGame() {
+        if (source instanceof GameSource.Granted) {
+            GameSource.Granted granted = (GameSource.Granted) source;
+            if (!GuestFiles.mount(this, granted.getTree(), granted.getDocumentId())) {
+                abort(getString(R.string.launch_game_missing, granted.getFolder()));
+                return null;
             }
-            String documentId = TreeDocument.INSTANCE.childId(
-                    TreeDocument.INSTANCE.rootId(tree), safGameName);
-            GameSource source = new GameSource.Granted(
-                    tree, documentId, safGameName, getApplicationContext().getContentResolver());
-            return Game.emulatorTitleId(source.openParam(), safGameName);
+            return GuestFiles.MOUNT + "/" + Game.EBOOT;
         }
-        File root = getExternalFilesDir(null);
-        if (root == null && !gameName.startsWith("/")) {
-            return Game.UNKNOWN_TITLE_ID;
+        File directory = ((GameSource.Staged) source).getDirectory();
+        File eboot = new File(directory, Game.EBOOT);
+        if (!eboot.exists()) {
+            // **the log says which of the two ways this could have happened**, since they are fixed
+            // differently: a directory under the app's own games/ that is not there was never staged,
+            // and one anywhere else is a path this app is not allowed to read -- which is what
+            // all-files access being revoked between the tap and the launch looks like from in here.
+            AppLog.e(TAG, "[app] missing: " + eboot.getAbsolutePath()
+                    + " -- either it was never staged, or this app cannot read that path");
+            abort(getString(R.string.launch_game_missing, directory.getName()));
+            return null;
         }
-        File directory = gameName.startsWith("/")
-                ? new File(gameName) : new File(AppStorage.games(root), gameName);
-        return Game.emulatorTitleId(new GameSource.Staged(directory).openParam(), gameName);
+        return eboot.getAbsolutePath();
     }
 
     /**
-     * the directory name of this launch's game, whichever extra named it.
+     * the title id the emulator will resolve for this launch's game, read the way it reads one.
      *
-     * <p>it is what a game with no title id of its own is filed under -- see {@link Game#configKeyFor}
-     * -- so the path form is reduced to its last component: the same game reached by name and by
-     * absolute path has to be the same game.
+     * <p><b>every failure answers {@code UNKNOWN}</b> rather than refusing: a dump with no
+     * {@code param.json} is a game that boots perfectly well, and a game that is not there at all is
+     * a case {@link #runGuest} reports properly a moment later.
      */
-    private String gameFolderName() {
-        if (safGameName != null && !safGameName.isEmpty()) {
-            return safGameName;
+    private String resolveTitleId() {
+        if (source == null) {
+            return Game.UNKNOWN_TITLE_ID;
         }
-        return gameName.startsWith("/") ? new File(gameName).getName() : gameName;
+        return Game.emulatorTitleId(source.openParam(), source.getFolder());
     }
 
     private void runGuest() {
+        // **the game this launch named, settled in onCreate, and the first thing asked about.**
+        // nothing below is worth doing for a launch that never worked out what to run -- and this
+        // refusal is the only one already in hand when the surface arrives, so it is also the fastest
+        // one there is.
+        if (source == null) {
+            abort(refusal != null ? refusal : getString(R.string.launch_no_game));
+            return;
+        }
         File root = getExternalFilesDir(null);
         if (root == null) {
-            AppLog.e(TAG, "[app] no external files directory");
+            abort(getString(R.string.launch_no_storage));
             return;
         }
         // where everything the emulator writes for the person using it goes. never null, unlike the
@@ -1283,31 +1239,12 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         // absolute path, which is a game in a folder the user granted, reached directly because
         // all-files access is on. the second is deliberately not a mode of its own -- it is this one,
         // pointed somewhere else.
-        String guestGame;
-        File gameDirectory = gameName.startsWith("/")
-                ? new File(gameName) : new File(AppStorage.games(root), gameName);
-        File staged = new File(gameDirectory, "eboot.bin");
-        // the title id was resolved in onCreate, because the settings this run merges are keyed by it
-        // -- see resolveTitleId. it names the pipeline cache's directory below, which is the
+        // the title id was resolved in onCreate, because the settings this run merges are keyed by
+        // it -- see resolveTitleId. it names the pipeline cache's directory below, which is the
         // emulator's to name everywhere except here.
-        if (safGameName != null && !safGameName.isEmpty()) {
-            if (!mountSafGame()) {
-                return;
-            }
-            guestGame = GuestFiles.MOUNT + "/eboot.bin";
-        } else {
-            guestGame = staged.getAbsolutePath();
-            if (!staged.exists()) {
-                // named by what would fix it, and the two forms fail for different reasons. a name
-                // that is not there was never staged; a path that is not there is one this app is
-                // not allowed to read, which is what all-files access being revoked between the tap
-                // and the launch looks like from in here.
-                AppLog.e(TAG, "[app] missing: " + staged.getAbsolutePath()
-                        + (gameName.startsWith("/")
-                        ? " -- that path is not readable. is all-files access still on?"
-                        : " -- stage it with scripts/stage.py"));
-                return;
-            }
+        String guestGame = openGame();
+        if (guestGame == null) {
+            return;
         }
         if (!payload.exists()) {
             AppLog.e(TAG, "[app] missing: " + payload.getAbsolutePath()
@@ -1502,7 +1439,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         args.add(getCacheDir().getAbsolutePath());
         // the mount, and only when a granted game asked for one. the flag being absent is what keeps
         // an ordinary run on exactly the code path it has always been on.
-        if (safGameName != null && !safGameName.isEmpty()) {
+        if (source instanceof GameSource.Granted) {
             args.add("--saf-mount");
             args.add(GuestFiles.MOUNT);
         }
@@ -1529,11 +1466,14 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             args.add("--strict");
         }
 
-        // named the way the run reaches it, because the two are different enough that a log which
-        // said only "game: X" would not tell you which of the two arms produced the numbers under it.
-        AppLog.i(TAG, "[app] game: " + (safGameName != null && !safGameName.isEmpty()
-                ? safGameName + " (through a grant)"
-                : gameName + (gameName.startsWith("/") ? " (a path)" : " (staged)")));
+        // **named the way the run reaches it**, because the two are different enough that a log
+        // saying only "game: X" would not tell you which of the two arms produced the numbers under
+        // it: one opens files with ordinary syscalls and the other answers every one of them through
+        // a content provider. what is printed is what that arm actually addresses the game by -- a
+        // directory on a volume, or a document id inside a grant.
+        AppLog.i(TAG, "[app] game: " + (source instanceof GameSource.Granted
+                ? ((GameSource.Granted) source).getDocumentId() + " (through a grant)"
+                : ((GameSource.Staged) source).getDirectory().getAbsolutePath() + " (a path)"));
         AppLog.i(TAG, "[app] starting: " + String.join(" ", args));
         // **the last thing before the host layer starts, because that is where its clock starts.**
         // everything a boot reports is measured from its own entry, and the app's wait began at the
@@ -1554,7 +1494,7 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
         // the lookups that came back empty, counted rather than each one reported. it prints only
         // when the guest returns rather than calling exit_group, which is the same limitation the
         // line above it has always had.
-        if (safGameName != null && !safGameName.isEmpty()) {
+        if (source instanceof GameSource.Granted) {
             AppLog.i(TAG, "[app] " + GuestFiles.missCount() + " lookups came back empty");
         }
     }

@@ -448,6 +448,19 @@
     <string name="guest_libs_failed">Could not unpack the support files that came with this app</string>
     <string name="guest_libs_missing">This app was built without the files games need. Put them on the device with scripts/stage.py --guest-libs</string>
 
+    <!-- and the ways a launch can fail before any of that, because it never worked out which game it
+         was meant to run.
+
+         **each one names the thing to go and do**, which for a game folder is always the same screen:
+         Settings, Game files, Game folders. the log carries the identifiers - the tree uri, the
+         document id, the path - and none of them appears here, because a person who has just tapped a
+         game in another app cannot act on a content uri. -->
+    <string name="launch_no_storage">This app cannot reach its own storage.</string>
+    <string name="launch_no_grant">This app has no game folder to look in. Add one in Settings, under Game files.</string>
+    <string name="launch_grant_revoked">The folder this game is in is no longer shared with this app. Add it again in Settings, under Game files.</string>
+    <string name="launch_no_game">This launch did not say which game to run.</string>
+    <string name="launch_game_missing">Could not find %1$s. It may have been moved or deleted.</string>
+
     <!-- what the loading screen says while a launch is not ready yet. **the heading is the game and
          these are the line under it**, so the only thing changing during a boot is the sentence that
          describes it - see view_guest_loading.xml.

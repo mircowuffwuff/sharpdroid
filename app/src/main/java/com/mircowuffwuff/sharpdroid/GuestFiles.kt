@@ -55,26 +55,29 @@ object GuestFiles {
     /**
      * points the layer at one game directory inside a granted tree, and says whether it is there.
      *
-     * the check is not ceremony: a game named by an extra that does not resolve would otherwise
-     * become a guest whose every file is missing, which reads as a corrupt dump rather than as a
-     * name that was wrong.
+     * **[documentId] is the directory itself rather than a name to append**, because the caller
+     * already holds one: a launch resolves its game to a [GameSource] before anything is mounted, and
+     * a granted source carries the id it was listed under. appending a name here would be deriving a
+     * second time what the caller derived once, and it would only ever work for a game sitting
+     * directly inside the granted folder.
+     *
+     * the check is not ceremony: a game whose directory does not resolve would otherwise become a
+     * guest whose every file is missing, which reads as a corrupt dump rather than as a directory
+     * that was not there.
      */
     @JvmStatic
-    fun mount(context: Context, treeUri: Uri, directoryName: String): Boolean {
-        val contentResolver = context.applicationContext.contentResolver
-        val id = TreeDocument.childId(TreeDocument.rootId(treeUri), directoryName)
-
-        resolver = contentResolver
+    fun mount(context: Context, treeUri: Uri, documentId: String): Boolean {
+        resolver = context.applicationContext.contentResolver
         tree = treeUri
-        rootId = id
+        rootId = documentId
 
         val probe = statOne("eboot.bin")
         if (probe == null) {
-            AppLog.e(TAG, "[app] no eboot.bin under $id -- is that the name of a game directory in the grant?")
+            AppLog.e(TAG, "[app] no eboot.bin under $documentId -- is that a game directory in the grant?")
             unmount()
             return false
         }
-        AppLog.i(TAG, "[app] the guest's game directory is $id, reached through a grant rather than a path")
+        AppLog.i(TAG, "[app] the guest's game directory is $documentId, reached through a grant rather than a path")
         return true
     }
 
