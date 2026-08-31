@@ -281,7 +281,7 @@ adb shell am start -n com.mircowuffwuff.sharpdroid/com.mircowuffwuff.sharpdroid.
 
 thanks to [SharpEmu](https://github.com/sharpemu/sharpemu), all its contributors on GitHub, its references [ShadPS4](https://shadps4.net/), [Kyty](https://github.com/InoriRus/Kyty), and Ryujinx, and everyone who has helped support its development.
 
-thanks to [FEX](https://github.com/FEX-Emu/FEX) for providing [FEXCore](https://github.com/FEX-Emu/FEX/tree/main/FEXCore), an x86-64 to arm64 translation layer, and thanks to [Valve](https://www.valvesoftware.com/en/) for funding it.
+thanks to [FEX](https://github.com/FEX-Emu/FEX) for providing their frontend as host layer reference and for providing [FEXCore](https://github.com/FEX-Emu/FEX/tree/main/FEXCore), an x86-64 to arm64 translation layer. thanks to [Valve](https://www.valvesoftware.com/en/) for funding it.
 
 thanks to [libadrenotools](https://github.com/bylaws/libadrenotools) for making it possible to inject custom vulkan drivers with relative ease.
 
