@@ -23,7 +23,7 @@ import java.io.InputStream
  */
 sealed class GameSource {
 
-    /** the directory's own name, e.g. `Dreaming Sarah [PPSA02929]`. what the launch intent carries. */
+    /** the directory's own name, e.g. `Dreaming Sarah`. what the launch intent carries. */
     abstract val folder: String
 
     /**

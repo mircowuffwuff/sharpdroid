@@ -2,8 +2,8 @@
 #
 #   py scripts/run.py                                       the app's own game list, no guest
 #   py scripts/run.py --game existing                       whatever game is on the device
-#   py scripts/run.py --game "Y:\games\Dead Cells [PPSA15552]"
-#   py scripts/run.py --game "/storage/emulated/0/roms/ps5/Dead Cells [PPSA15552]"
+#   py scripts/run.py --game "Y:\games\Dead Cells"
+#   py scripts/run.py --game "/storage/emulated/0/roms/ps5/Dead Cells"
 #   py scripts/run.py --game existing --sharpemu build      publish and package the fork first
 #   py scripts/run.py --game existing --driver Turnip.zip --turbo
 #   py scripts/run.py --game existing --seconds 90 --no-logs

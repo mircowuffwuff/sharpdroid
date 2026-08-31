@@ -10,9 +10,9 @@
 # the application id moves; the java package does not.
 #
 # **`adb shell` re-splits its command on the device.** passing an argument vector to `adb` settles
-# the host side and nothing else: a game directory is `Title [PPSAxxxxx]`, and the device's own shell
-# would take that as two words and a glob. so every path handed to a device shell is quoted for it
-# here, once, rather than at each call site.
+# the host side and nothing else: a game directory is named after its title, so it has spaces in it
+# and often brackets, and the device's own shell would take that as several words and a glob. so
+# every path handed to a device shell is quoted for it here, once, rather than at each call site.
 
 import re
 import shlex
@@ -319,9 +319,10 @@ class Device:
 
         **one quoted command string, and not an argument vector.** passing an argument list to `adb`
         settles this side of the wire and nothing else: the device's own shell receives one command
-        line and splits it again. every game directory is named `Title [PPSAxxxxx]`, so a launch
-        written the obvious way starts a game whose name is the first word of the real one -- which
-        it does *quietly*, because what reaches the app is a name it simply does not have.
+        line and splits it again. a game directory is named after its title and so has spaces in it,
+        and a launch written the obvious way starts a game whose name is the first word of the real
+        one -- which it does *quietly*, because what reaches the app is a name it simply does not
+        have.
 
         **the screen is brought up first, here rather than in each script.** every launch goes
         through this one function and nothing else needs a display -- staging copies files, and the

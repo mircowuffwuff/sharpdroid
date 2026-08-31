@@ -68,7 +68,7 @@ data class Game(
     val sharesSaveDirectory: Boolean get() = emulatorTitleId == UNKNOWN_TITLE_ID
 
 
-    /** the directory name, e.g. `Dreaming Sarah [PPSA02929]`. what [MainActivity] takes as `game`. */
+    /** the directory name, e.g. `Dreaming Sarah`. what [MainActivity] takes as `game`. */
     val folder: String get() = source.folder
 
     /** the dump's artwork for coil, or null. a real PNG, not the `.dds` beside it. */

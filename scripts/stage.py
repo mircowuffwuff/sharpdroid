@@ -3,7 +3,7 @@
 #
 #   py scripts/stage.py --sharpemu build\builds\android-0.0.3-hotfix-2-20260808015108
 #   py scripts/stage.py --sharpemu build\builds\android-0.0.3-hotfix-2-20260808015108.zip
-#   py scripts/stage.py --game "Y:\games\Dreaming Sarah [PPSA02929]"
+#   py scripts/stage.py --game "Y:\games\Dreaming Sarah"
 #   py scripts/stage.py --guest-libs
 #   py scripts/stage.py --driver Turnip.zip --driver-name turnip
 #   py scripts/stage.py --shell
