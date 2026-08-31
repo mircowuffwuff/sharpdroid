@@ -24,6 +24,46 @@ it is not sufficient here, and the reason decides everything below:
 
 so **attaching a grant is not what makes a launch work**, and no combination of flags on your side changes that.
 
+## finding the games
+
+**game folders are direct children of the library folder, and the marker is `eboot.bin`.** it is the one file this app tests for everywhere it decides whether a directory is a game — a scan, a launch, and the mount underneath a running guest all ask the same question. `sce_sys/` and `sce_module/` sit beside it in every dump seen here, but neither is what identifies one.
+
+**one level, not a search.** the folder to scan is the one holding the games — `roms/ps5/`, say — and this app refuses to register a folder that is itself a game, so there is no nesting to recurse through.
+
+### do not probe with `DocumentFile`
+
+listing the library folder is cheap: one query. **checking each child for its `eboot.bin` is where a naive scan becomes slow**, and the obvious API is the trap — `DocumentFile.findFile` is implemented as *list every child, then compare names*, so probing one game enumerates the several hundred files inside it, once per game in the library.
+
+**append instead.** the platform's own storage provider issues document ids of `<volume>:<path from the volume root>`, and a child's id is its parent's plus `/name`. so:
+
+```java
+String eboot = gameFolderId + "/eboot.bin";
+Cursor c = resolver.query(DocumentsContract.buildDocumentUriUsingTree(tree, eboot),
+        new String[] { DocumentsContract.Document.COLUMN_DOCUMENT_ID }, null, null, null);
+```
+
+one query at any folder size, and a document that is not there answers by returning nothing or by throwing, depending on the provider — treat both as absent.
+
+**take an id from the cursor wherever a listing already gave you one**, rather than building it: it is free, and it is one fewer place resting on the assumption above. appending is for the level *below* what you listed, which is exactly the eboot probe.
+
+[`GameLibrary.scanTree`](../app/src/main/java/com/mircowuffwuff/sharpdroid/GameLibrary.kt) is this app's own scan, and it is short: query the tree's children for `COLUMN_DOCUMENT_ID`, `COLUMN_DISPLAY_NAME` and `COLUMN_MIME_TYPE`, keep the rows whose mime is `MIME_TYPE_DIR`, and keep those with an eboot beneath.
+
+### what a dump can tell you about itself
+
+**enough that a PS5 library may not need scraping at all.** none of it is needed to *launch* a game — this app reads its own identity and artwork from the dump, so a launch carries no name and no cover — but a frontend showing its own list will want the same files.
+
+| | |
+| --- | --- |
+| `sce_sys/param.json` | the dump's identity. **or `param.json` beside the eboot** — the emulator looks in both, so a scan reading only the first reports an identity missing on a dump laid out the second way |
+| `titleId` | at the top level of that file, e.g. `PPSA02929` |
+| `localizedParameters` | a map of language tag to an object with `titleName` in it, plus a `defaultLanguage` naming which to fall back to |
+| `sce_sys/icon0.png` | square cover art. 512x512 in every dump here |
+| `sce_sys/pic0.png` | background art. 3840x2160 in every dump here |
+
+**resolve the display name against the device's locale rather than hardcoding one.** this app tries the full language tag, then the bare language, then `defaultLanguage`, then any entry that carries a name at all — so a frontend fixed on `en-US` will disagree with the name shown here on a device set to anything else.
+
+**everything degrades to the directory name.** a dump with no `sce_sys/`, a truncated `param.json`, one that is not JSON at all, or no artwork is still a game that boots, so none of those may cost a row in a list.
+
 ## the one thing the person has to have done
 
 **sharpdroid has to have been given the folder the games are in** — Settings → Game files → Game folders, once, with the platform's own folder picker.
