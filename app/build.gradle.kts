@@ -96,8 +96,8 @@ android {
         // somebody running one can still take the next release afterwards. widening the multiplier
         // later is safe, since the sequence only has to rise; narrowing it is not, so it starts at
         // ten rather than at something harder to leave.
-        versionCode = 20
-        versionName = "2"
+        versionCode = 30
+        versionName = "3"
 
         // the label, which a renamed build has to change too: two entries in the launcher both
         // called "SharpDroid" and no way to tell which is which is the failure this avoids.
