@@ -271,6 +271,12 @@ Intent intent = new Intent()
 startActivity(intent);
 ```
 
+alternatively to a Java implementation, a shell command also works.
+
+```shell
+adb shell am start -n com.mircowuffwuff.sharpdroid/com.mircowuffwuff.sharpdroid.MainActivity -d "content://com.android.externalstorage.documents/tree/primary%3Aroms%2Fps5/document/primary%3Aroms%2Fps5%2FDreaming%20Sarah"
+```
+
 ## credits
 
 thanks to [SharpEmu](https://github.com/sharpemu/sharpemu), all its contributors on GitHub, its references [ShadPS4](https://shadps4.net/), [Kyty](https://github.com/InoriRus/Kyty), and Ryujinx, and everyone who has helped support its development.
