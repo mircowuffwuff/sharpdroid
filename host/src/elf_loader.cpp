@@ -54,8 +54,8 @@ bool ReadExactly(int FD, void* Dest, size_t Size, off_t Offset) {
 // code buffers -- so the guest image only ever needs to be readable. dropping PROT_EXEC is not
 // a shortcut, it is what makes this work inside an android app at all: apps are denied
 // `execute` on their own app_data_file, so a file the app wrote could never be mapped
-// executable. an emulator that needed PROT_EXEC on guest images would be stuck; route B does
-// not need it.
+// executable. an emulator that needed PROT_EXEC on guest images would be stuck; this host layer
+// does not need it.
 // what the guest asked for, PF_X and all. this is what the VMA tracker records; ProtFromPhdrFlags
 // below is the same thing with PROT_EXEC taken back off, which is all the host kernel ever sees.
 int GuestProtFromPhdrFlags(uint32_t Flags) {

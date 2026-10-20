@@ -179,11 +179,12 @@ class GuestLoading(
     /**
      * which game is loading.
      *
-     * **both of these are handed down by the launch rather than read here**, and that is one
-     * `putExtra` in [GameLaunch] rather than this activity learning to parse a dump. a launch that
-     * names no display name is `am start`, and the folder is what it has to say instead; a launch that
-     * names no artwork draws none, since a placeholder in a popup reads as a cover that failed to
-     * load rather than as one nobody sent.
+     * **both of these are read from the dump by [MainActivity]**, out of the `param.json` it opens
+     * anyway to key this run's settings, so a launch from another app or from `am start` shows what a
+     * tap shows. a dump with no display name gives its directory name. a staged dump with no artwork
+     * draws none, since a placeholder in a card reads as a cover that failed to load rather than as
+     * one the dump does not have; a granted dump's artwork is never checked for -- see
+     * [GameSource.Granted] -- so a missing one draws the placeholder a failed decode does.
      *
      * @param icon what coil is handed -- a `File` for a staged game, a `content://` uri for a granted
      *     one. **a granted game's uri reaches `:guest` intact**: the grant belongs to the package

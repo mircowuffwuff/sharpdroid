@@ -1,6 +1,6 @@
 // sharpdroid host layer -- guest x86-64 vulkan onto the host's arm64 vulkan, in-process.
 //
-// this is route B's central claim made concrete: the guest's vulkan calls do not cross a socket,
+// this is what hosting the guest in-process buys: the guest's vulkan calls do not cross a socket,
 // a process boundary or a protocol. they arrive here, and here calls the real driver on the same
 // thread, in the same address space, one host call later.
 //
@@ -25,8 +25,8 @@
 //
 //   - **no pointer translation at all.** guest and host share one address space 1:1, so a guest
 //     pointer is already a host pointer. every VkStructure the guest fills in is read by the
-//     driver in place. this is the single biggest thing route B buys and it is why the whole
-//     marshaller is one template rather than a code generator per struct.
+//     driver in place. this is the single biggest thing sharing a process buys, and it is why
+//     the whole marshaller is one template rather than a code generator per struct.
 //   - **vulkan passes nothing by value that is not a scalar.** every command takes handles,
 //     enums, integers, floats and pointers, and returns void or an integer. so argument
 //     classification collapses to "SSE if floating point, INTEGER otherwise" and the return

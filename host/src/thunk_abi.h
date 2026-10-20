@@ -15,9 +15,9 @@
 // RAX. Next<T>() static_asserts the "no aggregates" half, so a header that grows a by-value struct
 // parameter stops the build instead of quietly reading the wrong register.
 //
-// and there is **no pointer translation anywhere**, which is the single biggest thing route B
-// buys: guest and host share one address space 1:1, so a guest pointer is already a host pointer
-// and every structure the guest fills in is read by the real library in place.
+// and there is **no pointer translation anywhere**, which is the single biggest thing sharing a
+// process buys: guest and host share one address space 1:1, so a guest pointer is already a
+// host pointer and every structure the guest fills in is read by the real library in place.
 
 #pragma once
 

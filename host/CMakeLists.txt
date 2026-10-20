@@ -159,9 +159,9 @@ add_subdirectory("${FEX_ROOT}/FEXCore"                         FEXCore)
 # undefined, and the final FEXInterpreter executable satisfies them at load time.
 #
 # android's linker does not allow that: the NDK passes -Wl,--no-undefined for shared
-# libraries, so libFEXCore.so cannot link and never will. that is fine, because route B wants
-# the static library regardless -- FEXCore gets linked directly into the single bionic .so we
-# ship, together with our own frontend. so drop the .so from the default target.
+# libraries, so libFEXCore.so cannot link and never will. that is fine, because the host layer
+# wants the static library regardless -- FEXCore is linked directly into the single bionic .so we
+# ship, together with the rest of the host layer. so drop the .so from the default target.
 set_target_properties(FEXCore_shared PROPERTIES EXCLUDE_FROM_ALL TRUE)
 
 # and make the static target self-describing, so whatever links FEXCore picks up FEXCore_Base

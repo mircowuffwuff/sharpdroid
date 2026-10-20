@@ -2,11 +2,10 @@
 <!--
   what a run shows while it is not ready yet, drawn over the surface the guest will render into.
 
-  **it is a screen rather than a widget, and that is the whole redesign.** a bar floating on the raw
-  surface reads as something that has gone wrong on a black screen; a card on a filled background
-  reads as the app, still working. it also solves a real problem the floating version had: the
-  surface behind it is black until the guest draws, so text coloured for a light scheme was dark text
-  on black. nothing here sits on the surface - the background is drawn.
+  **it is a screen rather than a widget.** a bar floating on the raw surface reads as something that
+  has gone wrong on a black screen; a card on a filled background reads as the app, still working. it
+  also keeps text off the surface, which is black until the guest draws, so text coloured for a light
+  scheme would be dark text on black. nothing here sits on the surface - the background is drawn.
 
   **and it is drawn black rather than in the scheme's own surface colour, which is the one place this
   screen does not follow the theme.** what is behind this view is the surface a guest is about to
@@ -27,16 +26,14 @@
   ShapeAppearance.SharpDroid.LoadingArt, which rounds the two corners it shares with the card and
   squares the two in the middle.
 
-  **the card is filled with the container role rather than the dialog's, and that is a change of what
-  this is.** it began as a dialog's clothes on a card, because a dialog is a window and this
-  activity's window is the surface a guest renders into. with the artwork at its edge it is no longer
-  anything like a popup, so it takes colorSurfaceContainer - which every scheme here names, unlike the
-  dialog role above it, and which is therefore the scheme's own colour in all five rather than the
-  library's baseline in one.
+  **the card is filled with the container role rather than the dialog's.** with the artwork at its
+  edge it is nothing like a popup, so it takes colorSurfaceContainer - which every scheme here names,
+  unlike the dialog role above it, and which is therefore the scheme's own colour in all five rather
+  than the library's baseline in one.
 
-  **its height is fixed and its width is capped.** a height that follows its contents grows a line at
-  the moment the bar gains a figure, partway through the wait and with nothing to explain it. the
-  percentage keeps its place whether or not there is a number in it, so the card is the same size for
+  **its height does not move and its width is capped.** a height that follows its contents grows a
+  line at the moment the bar gains a figure, partway through the wait and with nothing to explain
+  it. the percentage keeps its place whether or not there is a number in it, so the card is the same size for
   the whole of a launch and between one launch and the next.
 
   ConstraintLayout for exactly one property: `layout_constraintWidth_max`. the card wants to be a
@@ -60,11 +57,10 @@
          rather than losing margin. tying the panel's width to the card's height is what makes the
          crop impossible rather than merely unlikely.
 
-         **it is a minimum rather than a fixed height, and the reason the height was pinned is
-         untouched by that.** what a fixed height prevents is the card growing a line partway through
-         a wait, when the bar gains a figure - and every view that can appear during a boot still fits
-         inside 160dp, so the card is the same size for the whole of one and between one launch and
-         the next. a refusal is the only thing that makes it taller, and a refusal is terminal: there
+         **it is a minimum rather than a fixed height, and the card holds still all the same.** what
+         a fixed height would prevent is the card growing a line partway through a wait, when the
+         bar gains a figure - and every view that can appear during a boot fits inside 160dp, so the
+         card is the same size for the whole of one and between one launch and the next. a refusal is the only thing that makes it taller, and a refusal is terminal: there
          is no boot left underneath for a resize to disturb. -->
     <com.google.android.material.card.MaterialCardView
         android:layout_width="0dp"
@@ -88,9 +84,9 @@
 
             <!-- **its own shape rather than the card's clipping**, so this does not depend on how a
                  card treats a child that reaches its corners. it is GONE rather than a placeholder
-                 when a launch named no artwork, because `am start` names none - and an empty grey
-                 panel of this size reads as a cover that failed to load rather than as one nobody
-                 sent. the text column then simply takes the whole card. -->
+                 when the launch has no artwork to give it, because an empty grey panel of this size
+                 reads as a cover that failed to load rather than as one the dump does not have. the
+                 text column then simply takes the whole card. -->
             <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/loading_cover"
                 android:layout_width="160dp"
@@ -104,8 +100,8 @@
 
             <!-- **centred in the card's height rather than padded to it**, which is what lets the
                  height be a fixed number without anything having to add up to it: the block is
-                 whatever it is and the air divides itself. 24dp at the sides is the dialog padding
-                 this card kept when it stopped being a dialog in every other respect. -->
+                 whatever it is and the air divides itself. 24dp at the sides is a dialog's
+                 padding. -->
             <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
@@ -188,8 +184,8 @@
                      figure competes with the heading; at the start, the eye leaves it before the bar
                      has said anything.
 
-                     **it is invisible rather than gone when there is no figure to give**, which is
-                     the opposite of what it was and follows from the card's height being fixed. a
+                     **it is invisible rather than gone when there is no figure to give**, which
+                     follows from the card's height not moving. a
                      view that is gone closes the space it occupied, so an indeterminate launch would
                      centre a shorter block in the same card and put every line somewhere else. -->
                 <!-- **what a launch says when it is not going to happen**, and the two of them
