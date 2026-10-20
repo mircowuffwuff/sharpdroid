@@ -510,7 +510,7 @@ the first launch that resolves to it writes `builds/bundled` out of the APK, and
 what belongs to the app around all of it:
 
 - **the launch log names the build** — display name, id, version, build number, contract and directory, plus its `notes` line if it has one. that is not decoration. a third-party build misbehaving arrives as "your emulator is broken", so a run has to be traceable to the artefact that produced it without asking the person who ran it
-- **the resolved build's `env` becomes the lowest-precedence tier** of the environment merge below
+- **the resolved build's `env` becomes the second tier** of the environment merge below, above only the app's own defaults, which it replaces
 - **nothing resolves a build by id.** the id groups the list and decides the *Latest* badge, and that is the whole of its job — answering "the newest build of this id" would only ever serve a recommendation, and with exactly one build shipping per APK there is none to make
 
 the app also checks that the game's `eboot.bin` is there before it starts anything, and names what would fix it — a name that is not there was never staged, while a path that is not there is one the app is not allowed to read. a guest that starts and then cannot find its game fails much further from the cause.
@@ -547,7 +547,7 @@ the eight launcher variables are [`build-format.md`](build-format.md)'s and are 
 | `SHARPEMU_SAVEDATA_DIR`, `SHARPEMU_HOSTAPP_DIR`, `SHARPEMU_DEVLOG_APP_DIR` | **the app's own `user/` directory**, on internal storage — three of the four things SharpEmu resolves next to its own executable, lifted out of a build directory whose lifetime nobody chose. `AppStorage` is where the names live |
 | `SHARPEMU_VK_PIPELINE_CACHE_PATH` | the fourth, and **the one the app has to spell in full**: that variable names the cache blob rather than a root, so the per-title directory in the middle is the launcher's to build. it reads the dump's title id the way the emulator reads it — `Game.emulatorTitleId`, matched field for field and character for character, because a disagreement here is silent |
 
-the merge is a **map**, seeded with the build's `env`, overwritten by the settings, overwritten by those eight, then overwritten by anything from `guestenv`, and only then turned into `--env` flags. that ordering is the precedence order, and the map is what makes it work: two `--env` arguments naming one variable would be a coin toss over which value the guest reads.
+the merge is a **map**, seeded with the app's defaults (`GUEST_ENV_DEFAULTS` in `MainActivity`, listed in [`build-format.md`](build-format.md#env-and-what-a-build-may-not-ask-for)), overwritten by the build's `env`, overwritten by the settings, overwritten by those eight, then overwritten by anything from `guestenv`, and only then turned into `--env` flags. that ordering is the precedence order, and the map is what makes it work: two `--env` arguments naming one variable would be a coin toss over which value the guest reads.
 
 **a build may set guest environment and nothing else** — no SMC mode, no signal delivery mode, none of the vulkan family. those are properties of the host layer's correctness, and the app enforces it by construction rather than by validation, since a build's `env` becomes `--env` and can become nothing else.
 

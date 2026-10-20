@@ -24,6 +24,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -158,8 +159,38 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
     private String[] guestEnv = {};
     /** {@code --es sharpemu}, an absolute path to a build directory, or null for the latest staged. */
     private String buildPath;
-    /** the selected build's own environment defaults. the lowest-precedence source there is. */
+    /**
+     * the selected build's own environment defaults, above only {@link #GUEST_ENV_DEFAULTS}.
+     */
     private Map<String, String> buildEnv = new LinkedHashMap<>();
+
+    /**
+     * guest environment the app defaults on for every build. the lowest-precedence source there
+     * is, so a build's {@code env} replaces any of it by naming the variable.
+     *
+     * <p><b>{@code SHARPEMU_RENDER_WORK_BUDGET_MS} bounds how long the render loop drains guest
+     * work before it presents.</b> the emulator defaults it on macOS alone and drains up to 1024
+     * items unbounded everywhere else, on the reasoning that a dedicated render thread has nothing
+     * to keep responsive. android has that thread, and a GPU driver on which one work item can
+     * cost milliseconds: a title heavy enough to reach the cap keeps reaching it, presents once
+     * per several hundred items, and runs at between a sixth and a third of its frame rate.
+     *
+     * <p><b>12 ms is the emulator's own macOS value, and on a light title it is a trade.</b>
+     * unbounded, a drain that keeps absorbing the next frame's work can leave the presenter
+     * showing a frame three or more behind the newest one, which never makes the render thread
+     * wait and is a few percent faster. a drain longer than the budget is split instead, so the
+     * presenter shows the newest frame and the render thread waits on the guest once a frame.
+     * no flat value gives a light title the unbounded behaviour and still stops a heavy one
+     * collapsing: the heavy one needs a budget shorter than the light one's ordinary drain.
+     *
+     * <p>a time budget rather than a smaller item cap, because a cap still lets slow items hold a
+     * present back in proportion to how slow they are, and recovers less of the frame rate. and a
+     * default rather than a launcher variable, because this is a tuning of the emulator's own
+     * loop: a build that bounds its drain some other way says {@code 0} in its {@code env}, which
+     * is the emulator's own off switch.
+     */
+    private static final Map<String, String> GUEST_ENV_DEFAULTS =
+            Collections.singletonMap("SHARPEMU_RENDER_WORK_BUDGET_MS", "12");
 
     /**
      * {@code --strict} on the payload's own command line, or null for "the user did not say".
@@ -1520,16 +1551,18 @@ public final class MainActivity extends Activity implements SurfaceHolder.Callba
             }
         }
 
-        // guest environment, in precedence order: **build defaults < app settings < intent
-        // extras**, last wins. it is a map rather than a list of --env flags so a variable a build
-        // defaults on and a launch overrides reaches the guest once, with the override's value --
-        // two --env flags naming the same variable would be a coin toss over which the guest reads.
+        // guest environment, in precedence order: **app defaults < build defaults < app settings <
+        // intent extras**, last wins. it is a map rather than a list of --env flags so a variable a
+        // build defaults on and a launch overrides reaches the guest once, with the override's
+        // value -- two --env flags naming the same variable would be a coin toss over which the
+        // guest reads.
         //
         // the missing tier is explicit --env on the shell binary's command line, which is above all
-        // three and is not reachable from here. a build may set *only* this: --smc, --asyncsig and
+        // of them and is not reachable from here. a build may set *only* this: --smc, --asyncsig and
         // the --vulkan-* family are properties of the host layer's correctness, and a payload able
         // to ask for --smc none is a payload able to break the thing running it.
-        Map<String, String> env = new LinkedHashMap<>(buildEnv);
+        Map<String, String> env = new LinkedHashMap<>(GUEST_ENV_DEFAULTS);
+        env.putAll(buildEnv);
         // the settings scene's contribution, between the build's defaults and the launcher's own
         // below. it is empty unless a row was actually touched.
         env.putAll(settingsEnv);

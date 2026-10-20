@@ -126,8 +126,8 @@ def entry():
                              "which after an upstream merge would credit an upstream contributor "
                              "for a package they never made.")
     parser.add_argument("--guest-env", metavar="NAME=VALUE", nargs="+", default=None,
-                        help="guest environment this build wants defaulted on. the "
-                             "lowest-precedence source there is.")
+                        help="guest environment this build wants defaulted on. below "
+                             "everything but the app's own defaults, which it replaces.")
     arguments = parser.parse_args()
 
     toolchain = tc.resolve()

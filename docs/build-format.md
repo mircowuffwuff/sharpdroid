@@ -52,7 +52,7 @@ UTF-8, **no BOM**. `java.util.zip` and `org.json` both cope with one; every othe
 | `packagedAt` | when the build was packaged, `yyyyMMddHHmmss` **as a number**. the key everything is ordered by, since later is newer | `0` |
 | `hostContract` | the launcher↔payload interface generation. see below | `0`, **which is refused** |
 | `payload` | the executable's file name within the directory | `"SharpEmu"` |
-| `env` | guest environment this build wants defaulted on. the lowest-precedence source there is | empty |
+| `env` | guest environment this build wants defaulted on. below everything but the app's own defaults, which it replaces | empty |
 | `notes` | one line, printed at launch under the identity | empty |
 | `author` | who produced this build. drawn on the build list beside the version | empty |
 | `commit` | **provenance, not format.** the commit the payload was built from, with `-dirty.<8 hex>` after it when that checkout had uncommitted changes in it | — |
@@ -121,11 +121,21 @@ the payload is otherwise an ordinary linux-x64 publish. it is `ET_DYN` and links
 
 ## `env`, and what a build may not ask for
 
-`env` is the **lowest-precedence** environment source there is. per launch, last wins:
+`env` sits **one tier above the bottom** of the environment sources. per launch, last wins:
 
 ```
-the build's own env  <  the settings rows  <  the launcher's own  <  the launch intent's extra guest environment
+the app's defaults  <  the build's own env  <  the settings rows  <  the launcher's own  <  the launch intent's extra guest environment
 ```
+
+**the app's defaults are what a build replaces by naming a variable.** they tune the emulator for android without asking anything of a payload, and there is one:
+
+| variable | default | why |
+| --- | --- | --- |
+| `SHARPEMU_RENDER_WORK_BUDGET_MS` | `12` | the render loop's time budget for draining guest work before it presents. SharpEmu defaults it on macOS alone and otherwise drains up to 1024 work items unbounded, which a desktop's per-item cost keeps short. on an android GPU driver one item can cost milliseconds, so a title heavy enough to reach the cap keeps reaching it, presents once per several hundred items, and runs at a sixth to a third of its frame rate. `12` is SharpEmu's own macOS value |
+
+**on a light title the budget is a trade.** unbounded, a drain that keeps absorbing the next frame's work can leave the presenter showing a frame three or more behind the newest one, which never makes the render thread wait and is a few percent faster. a drain longer than 12 ms is split instead, so the presenter shows the newest frame and the render thread waits on the guest once a frame. no flat value gives a light title the unbounded behaviour and still stops a heavy one collapsing: the heavy one needs a budget shorter than the light one's ordinary drain.
+
+a build that bounds its drain some other way sets `SHARPEMU_RENDER_WORK_BUDGET_MS` to `0` in its `env`, which is the emulator's own off switch.
 
 the launcher's own are `DOTNET_EnableWriteXorExecute`, `SHARPEMU_HOST_WINDOW`, `SHARPEMU_HOST_AUDIO`, `SHARPEMU_HOST_INPUT`, `SHARPEMU_HOST_WINDOW_SIZE`, `SHARPEMU_SAVEDATA_DIR`, `SHARPEMU_VK_PIPELINE_CACHE_PATH`, `SHARPEMU_HOSTAPP_DIR` and `SHARPEMU_DEVLOG_APP_DIR`, plus `SHARPEMU_VK_PIPELINE_CACHE=0` while Disk shader cache is off. so neither a build nor a settings row **can** override any of them by declaring it: the launcher writes them after both maps. below all of it, the host layer's shell binary takes explicit `--env` on its own command line, which is a development path and not something the app reaches.
 

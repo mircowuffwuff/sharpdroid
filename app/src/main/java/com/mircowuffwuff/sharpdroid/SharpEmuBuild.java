@@ -141,7 +141,10 @@ public final class SharpEmuBuild {
      * bundled, and on any build packaged before the field existed.
      */
     final String author;
-    /** guest environment this build wants defaulted on. the lowest-precedence source there is. */
+    /**
+     * guest environment this build wants defaulted on. below everything but the app's own defaults,
+     * which it replaces.
+     */
     final Map<String, String> env;
     /**
      * true for the build that is still inside the APK: identified, and not yet a directory.
